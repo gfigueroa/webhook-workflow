@@ -20,7 +20,7 @@ Payment Provider                    Render Platform
       ▼                                   ▼
 ┌─────────────────┐             ┌─────────────────────┐
 │ Webhook Service │────────────▶│   Render Workflow   │
-│   (FastAPI)     │  trigger    │                     │
+│                 │  trigger    │                     │
 │                 │             │  ┌───────────────┐  │
 │ • Validate sig  │             │  │process_payment│  │
 │ • Check timestamp│            │  └───────┬───────┘  │
@@ -38,19 +38,37 @@ Payment Provider                    Render Platform
 
 ## Project structure
 
+This template includes both TypeScript and Python implementations:
+
 ```
 webhook-workflows/
-├── README.md
-├── render.yaml              # Blueprint for webhook service
-├── webhook/                 # FastAPI webhook receiver
-│   ├── main.py              # FastAPI app and routes
-│   ├── models.py            # Pydantic models for validation
-│   ├── security.py          # HMAC signature validation
-│   ├── config.py            # Environment configuration
-│   └── requirements.txt
-└── workflow/                # Render Workflow tasks
-    ├── main.py              # Task definitions
-    └── requirements.txt
+├── typescript/
+│   ├── webhook/             # Fastify webhook receiver
+│   │   ├── src/
+│   │   │   ├── index.ts     # Server setup and routes
+│   │   │   ├── handlers.ts  # Route handlers (business logic)
+│   │   │   ├── config.ts    # Environment configuration
+│   │   │   ├── security.ts  # HMAC signature validation
+│   │   │   └── types.ts     # Zod schemas for validation
+│   │   └── package.json
+│   └── workflow/            # Render Workflow tasks
+│       ├── src/
+│       │   └── main.ts      # Task definitions
+│       └── package.json
+├── python/
+│   ├── webhook/             # FastAPI webhook receiver
+│   │   ├── main.py          # Server setup and routes
+│   │   ├── handlers.py      # Route handlers (business logic)
+│   │   ├── config.py        # Environment configuration
+│   │   ├── security.py      # HMAC signature validation
+│   │   ├── models.py        # Pydantic models for validation
+│   │   └── requirements.txt
+│   └── workflow/            # Render Workflow tasks
+│       ├── main.py          # Task definitions
+│       └── requirements.txt
+├── frontend/                # React tester UI
+│   └── ...
+└── render.yaml              # Blueprint for deployment
 ```
 
 ## Deploy to Render
@@ -68,14 +86,14 @@ During deployment, you'll be prompted for:
 
 ### 2. Create the workflow service
 
-Workflows aren't yet supported in blueprints, so create one manually:
+Workflows aren't yet supported in Blueprints, so create one manually:
 
 1. In the Render Dashboard, click **New > Workflow**
 2. Connect your repo (or fork of this template)
 3. Configure the workflow:
-   - **Root Directory**: `workflow`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python main.py`
+   - **Root Directory**: `python/workflow` (or `typescript/workflow`)
+   - **Build Command**: `pip install -r requirements.txt` (or `npm install && npm run build`)
+   - **Start Command**: `python main.py` (or `npm start`)
 4. Click **Deploy Workflow**
 
 ### 3. Connect the services
@@ -110,14 +128,22 @@ Requests with timestamps older than 5 minutes are rejected, preventing captured 
 
 ### Constant-time comparison
 
-Signatures are compared using `hmac.compare_digest()` to prevent timing attacks.
+Signatures are compared using constant-time functions to prevent timing attacks.
 
 ## Test the webhook
 
-### Generate a signed request
+### Using the tester UI
+
+The webhook service includes a built-in tester UI. Open your webhook URL in a browser to access it. The UI lets you:
+
+- Generate signed test payloads
+- Send requests to the webhook endpoint
+- View real-time responses via SSE
+
+### Generate a signed request (CLI)
 
 ```bash
-# Set your webhook secret (from Render Dashboard or local .env)
+# Set your webhook secret (from the Render Dashboard or local .env)
 export WEBHOOK_SECRET="your-secret-here"
 
 # Set your webhook URL
@@ -157,10 +183,26 @@ curl -X POST "$WEBHOOK_URL" \
 
 ## Local development
 
-### Run the webhook service
+### TypeScript
 
 ```bash
-cd webhook
+# Webhook service
+cd typescript/webhook
+npm install
+cp .env.example .env  # Edit with your settings
+npm run dev
+
+# Workflow (in a separate terminal)
+cd typescript/workflow
+npm install
+npm run dev
+```
+
+### Python
+
+```bash
+# Webhook service
+cd python/webhook
 python -m venv venv
 source venv/bin/activate  # or `venv\Scripts\activate` on Windows
 pip install -r requirements.txt
@@ -174,9 +216,24 @@ EOF
 
 # Run the server
 python main.py
+
+# Workflow (in a separate terminal)
+cd python/workflow
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python main.py
 ```
 
-The webhook service runs at `http://localhost:10000`.
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run build  # Build the tester UI
+```
+
+The webhook service serves the built frontend automatically.
 
 ### Test locally without workflows
 
@@ -239,8 +296,17 @@ The workflow demonstrates several patterns:
 
 ### Parallel execution
 
-`update_records` and `send_receipt` run simultaneously using `asyncio.gather()`:
+`update_records` and `send_receipt` run simultaneously:
 
+**TypeScript:**
+```typescript
+const [recordsResult, receiptResult] = await Promise.all([
+  updateRecords(paymentId, orderId, amount, currency),
+  sendReceipt(paymentId, customerEmail, customerName, amount, currency, orderId),
+]);
+```
+
+**Python:**
 ```python
 records_result, receipt_result = await asyncio.gather(
     update_records(payment_id, order_id, amount, currency),
@@ -256,17 +322,25 @@ records_result, receipt_result = await asyncio.gather(
 
 `notify_fulfillment` has exponential backoff configured for transient failures:
 
+**TypeScript:**
+```typescript
+const notifyFulfillment = task(
+  {
+    name: "notify_fulfillment",
+    retry: {
+      maxRetries: 3,
+      waitDurationMs: 1000,
+      backoffScaling: 2.0,  // 1s, 2s, 4s
+    },
+  },
+  async (orderId, paymentId, customerName, metadata) => { ... }
+);
+```
+
+**Python:**
 ```python
-@task(
-    options=Options(
-        retry=Retry(
-            max_retries=3,
-            wait_duration_ms=1000,
-            factor=2.0,  # 1s, 2s, 4s
-        )
-    )
-)
-async def notify_fulfillment(...):
+@app.task(retry=Retry(max_retries=3, wait_duration_ms=1000, backoff_scaling=2.0))
+async def notify_fulfillment(order_id, payment_id, customer_name, metadata):
     ...
 ```
 
@@ -274,5 +348,6 @@ async def notify_fulfillment(...):
 
 - [Render Workflows documentation](https://render.com/docs/workflows)
 - [Workflows SDK for Python](https://render.com/docs/workflows-sdk-python)
+- [Workflows SDK for TypeScript](https://render.com/docs/workflows-sdk-typescript)
 - [Running Workflow Tasks](https://render.com/docs/workflows-running)
 - [Local Development for Workflows](https://render.com/docs/workflows-local-development)
