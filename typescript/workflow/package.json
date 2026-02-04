@@ -1,0 +1,20 @@
+{
+  "name": "workflow-ts",
+  "version": "1.0.0",
+  "description": "TypeScript Render Workflow tasks for payment processing",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "dev": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@renderinc/sdk": "^0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

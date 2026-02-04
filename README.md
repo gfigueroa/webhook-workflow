@@ -1,0 +1,278 @@
+# Webhook + Render Workflows Demo
+
+This template demonstrates how to build a secure webhook endpoint that validates requests using HMAC-SHA256 signatures and delegates processing to [Render Workflows](https://render.com/docs/workflows) for reliable async execution.
+
+**Use case:** A payment provider (like Stripe) sends a `payment.succeeded` webhook. The webhook service validates the signature, then triggers a workflow that:
+
+1. Updates order records (marks as paid)
+2. Sends a receipt email to the customer
+3. Notifies the fulfillment system
+
+All without blocking the webhook response or managing queue infrastructure.
+
+## Architecture
+
+```
+Payment Provider                    Render Platform
+      │                                   │
+      │  POST /webhook                    │
+      │  + signature header               │
+      ▼                                   ▼
+┌─────────────────┐             ┌─────────────────────┐
+│ Webhook Service │────────────▶│   Render Workflow   │
+│   (FastAPI)     │  trigger    │                     │
+│                 │             │  ┌───────────────┐  │
+│ • Validate sig  │             │  │process_payment│  │
+│ • Check timestamp│            │  └───────┬───────┘  │
+│ • Parse payload │             │          │          │
+│ • Return 200    │             │    ┌─────┴─────┐    │
+└─────────────────┘             │    ▼           ▼    │
+                                │ update_    send_    │
+                                │ records    receipt  │
+                                │    │           │    │
+                                │    └─────┬─────┘    │
+                                │          ▼          │
+                                │   notify_fulfillment│
+                                └─────────────────────┘
+```
+
+## Project structure
+
+```
+webhook-workflows/
+├── README.md
+├── render.yaml              # Blueprint for webhook service
+├── webhook/                 # FastAPI webhook receiver
+│   ├── main.py              # FastAPI app and routes
+│   ├── models.py            # Pydantic models for validation
+│   ├── security.py          # HMAC signature validation
+│   ├── config.py            # Environment configuration
+│   └── requirements.txt
+└── workflow/                # Render Workflow tasks
+    ├── main.py              # Task definitions
+    └── requirements.txt
+```
+
+## Deploy to Render
+
+### 1. Deploy the webhook service
+
+Click the button below to deploy the webhook service:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/render-examples/webhook-workflows)
+
+During deployment, you'll be prompted for:
+
+- **RENDER_API_KEY**: Your Render API key ([create one here](https://render.com/docs/api#1-create-an-api-key))
+- **WORKFLOW_SLUG**: Leave blank for now; set after creating the workflow
+
+### 2. Create the workflow service
+
+Workflows aren't yet supported in blueprints, so create one manually:
+
+1. In the Render Dashboard, click **New > Workflow**
+2. Connect your repo (or fork of this template)
+3. Configure the workflow:
+   - **Root Directory**: `workflow`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `python main.py`
+4. Click **Deploy Workflow**
+
+### 3. Connect the services
+
+After the workflow deploys:
+
+1. Go to the workflow's **Tasks** page
+2. Click on `process-payment` and copy the **task slug** (format: `workflow-name/process-payment`)
+3. Go to your webhook service's **Environment** settings
+4. Set `WORKFLOW_SLUG` to the copied task slug
+
+## Webhook security
+
+This template implements industry-standard webhook security:
+
+### HMAC-SHA256 signatures
+
+Every request must include:
+
+- `X-Webhook-Signature`: `sha256=<hex_signature>`
+- `X-Webhook-Timestamp`: `<unix_timestamp>`
+
+The signature is computed as:
+
+```
+HMAC-SHA256(key=WEBHOOK_SECRET, message=timestamp + "." + raw_body)
+```
+
+### Replay attack protection
+
+Requests with timestamps older than 5 minutes are rejected, preventing captured requests from being replayed later.
+
+### Constant-time comparison
+
+Signatures are compared using `hmac.compare_digest()` to prevent timing attacks.
+
+## Test the webhook
+
+### Generate a signed request
+
+```bash
+# Set your webhook secret (from Render Dashboard or local .env)
+export WEBHOOK_SECRET="your-secret-here"
+
+# Set your webhook URL
+export WEBHOOK_URL="https://your-webhook.onrender.com/webhook"
+
+# Generate timestamp and payload
+TIMESTAMP=$(date +%s)
+PAYLOAD='{"event_type":"payment.succeeded","event_id":"evt_test_'$(date +%s)'","timestamp":"2026-01-23T10:30:00Z","data":{"payment_id":"pi_test123","amount":11877,"currency":"usd","customer_email":"jane@example.com","customer_name":"Jane Smith","order_id":"ord_456","metadata":{"product_type":"subscription","plan":"pro"}}}'
+
+# Compute signature
+SIGNATURE=$(echo -n "${TIMESTAMP}.${PAYLOAD}" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" | cut -d' ' -f2)
+
+# Send the request
+curl -X POST "$WEBHOOK_URL" \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Signature: sha256=${SIGNATURE}" \
+  -H "X-Webhook-Timestamp: ${TIMESTAMP}" \
+  -d "$PAYLOAD"
+```
+
+### Expected response
+
+```json
+{
+  "status": "processing",
+  "event_id": "evt_test_1706012345",
+  "task_run_id": "trn-abc123...",
+  "message": "Payment processing started (task: trn-abc123...)"
+}
+```
+
+### View workflow results
+
+1. Go to your workflow in the Render Dashboard
+2. Click **Tasks > process-payment > Runs**
+3. Select the task run to see logs and results
+
+## Local development
+
+### Run the webhook service
+
+```bash
+cd webhook
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+pip install -r requirements.txt
+
+# Create .env file
+cat > .env << EOF
+WEBHOOK_SECRET=dev-secret-for-testing
+RENDER_API_KEY=
+WORKFLOW_SLUG=
+EOF
+
+# Run the server
+python main.py
+```
+
+The webhook service runs at `http://localhost:10000`.
+
+### Test locally without workflows
+
+Without `RENDER_API_KEY` and `WORKFLOW_SLUG` set, the webhook validates signatures and payloads but skips workflow triggering. This is useful for testing the webhook logic in isolation.
+
+### Test with Render Workflows locally
+
+See [Local Development for Workflows](https://render.com/docs/workflows-local-development) for running workflows locally.
+
+## Payload schema
+
+The webhook expects this payload structure:
+
+```json
+{
+  "event_type": "payment.succeeded",
+  "event_id": "evt_unique_id",
+  "timestamp": "2026-01-23T10:30:00Z",
+  "data": {
+    "payment_id": "pi_abc123",
+    "amount": 11877,
+    "currency": "usd",
+    "customer_email": "customer@example.com",
+    "customer_name": "Jane Smith",
+    "order_id": "ord_456",
+    "metadata": {
+      "product_type": "subscription",
+      "plan": "pro"
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `event_type` | string | `payment.succeeded` or `payment.failed` |
+| `event_id` | string | Unique event ID for idempotency |
+| `timestamp` | ISO 8601 | When the event occurred |
+| `data.payment_id` | string | Unique payment identifier |
+| `data.amount` | integer | Amount in cents |
+| `data.currency` | string | ISO 4217 currency code (3 lowercase letters) |
+| `data.customer_email` | string | Customer email address |
+| `data.customer_name` | string | Customer full name |
+| `data.order_id` | string | Associated order identifier |
+| `data.metadata` | object | Optional key-value pairs |
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `WEBHOOK_SECRET` | Yes | Secret key for HMAC signature validation |
+| `RENDER_API_KEY` | Yes* | Render API key for triggering workflows |
+| `WORKFLOW_SLUG` | Yes* | Task slug (e.g., `my-workflow/process-payment`) |
+
+*Required for workflow integration. The webhook validates requests without these but won't trigger tasks.
+
+## Workflow tasks
+
+The workflow demonstrates several patterns:
+
+### Parallel execution
+
+`update_records` and `send_receipt` run simultaneously using `asyncio.gather()`:
+
+```python
+records_result, receipt_result = await asyncio.gather(
+    update_records(payment_id, order_id, amount, currency),
+    send_receipt(payment_id, customer_email, customer_name, amount, currency, order_id),
+)
+```
+
+### Sequential chaining
+
+`notify_fulfillment` runs only after the parallel tasks complete.
+
+### Retry logic
+
+`notify_fulfillment` has exponential backoff configured for transient failures:
+
+```python
+@task(
+    options=Options(
+        retry=Retry(
+            max_retries=3,
+            wait_duration_ms=1000,
+            factor=2.0,  # 1s, 2s, 4s
+        )
+    )
+)
+async def notify_fulfillment(...):
+    ...
+```
+
+## Learn more
+
+- [Render Workflows documentation](https://render.com/docs/workflows)
+- [Workflows SDK for Python](https://render.com/docs/workflows-sdk-python)
+- [Running Workflow Tasks](https://render.com/docs/workflows-running)
+- [Local Development for Workflows](https://render.com/docs/workflows-local-development)

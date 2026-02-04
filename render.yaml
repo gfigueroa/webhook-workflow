@@ -1,0 +1,70 @@
+# Render Blueprint for Webhook + Workflows Demo
+#
+# This blueprint deploys the webhook receiver web service.
+# The webhook service builds and serves the React frontend UI.
+# The workflow service must be created separately via the Render Dashboard
+# (Workflows are not yet supported in blueprints).
+#
+# Choose either Python or TypeScript by uncommenting the appropriate service.
+#
+# After deploying:
+# 1. Create a Workflow service in the Dashboard (New > Workflow)
+# 2. Link this repo, set root directory to "python/workflow/" or "typescript/workflow/"
+# 3. Set WORKFLOW_SLUG to your workflow service name
+
+services:
+  # =============================================================================
+  # PYTHON WEBHOOK (default)
+  # Builds the React frontend and serves both the API and UI
+  # =============================================================================
+  - type: web
+    runtime: python
+    name: webhook-receiver
+    rootDir: python/webhook
+    buildCommand: pip install -r requirements.txt && cd ../../frontend && npm install && npm run build && rm -rf ../python/webhook/static && cp -r dist ../python/webhook/static
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # Secret for validating webhook signatures
+      # This default is for demo purposes - change it in your Render Dashboard for production
+      - key: WEBHOOK_SECRET
+        value: demo-webhook-secret
+
+      # Render API key for triggering workflow tasks
+      # Create at: Dashboard > Account Settings > API Keys
+      - key: RENDER_API_KEY
+        sync: false
+
+      # Workflow slug (service name on Render)
+      # The code automatically appends the task name (process_payment)
+      - key: WORKFLOW_SLUG
+        sync: false
+
+  # =============================================================================
+  # TYPESCRIPT WEBHOOK (uncomment to use instead of Python)
+  # Builds the React frontend and serves both the API and UI
+  # =============================================================================
+  # - type: web
+  #   runtime: node
+  #   name: webhook-receiver-ts
+  #   rootDir: typescript/webhook
+  #   buildCommand: |
+  #     npm install && npm run build
+  #     cd ../../frontend && npm install && npm run build && cp -r dist ../typescript/webhook/static
+  #   startCommand: npm start
+  #   healthCheckPath: /health
+  #   envVars:
+  #     # Secret for validating webhook signatures
+  #     # This default is for demo purposes - change it in your Render Dashboard for production
+  #     - key: WEBHOOK_SECRET
+  #       value: demo-webhook-secret
+  #
+  #     # Render API key for triggering workflow tasks
+  #     # Create at: Dashboard > Account Settings > API Keys
+  #     - key: RENDER_API_KEY
+  #       sync: false
+  #
+  #     # Workflow slug (service name on Render)
+  #     # The code automatically appends the task name (process_payment)
+  #     - key: WORKFLOW_SLUG
+  #       sync: false
