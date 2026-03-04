@@ -64,12 +64,7 @@ def compute_signature(payload: bytes, timestamp: str, secret: str) -> str:
     Returns:
         Hex-encoded HMAC-SHA256 signature
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     message = f"{timestamp}.".encode() + payload
-    logger.info(f"Signing message (first 100): {message[:100]}")
-    
     signature = hmac.new(
         key=secret.encode(),
         msg=message,
@@ -104,9 +99,6 @@ def verify_signature(
         TimestampValidationError: If timestamp is invalid or too old
         SignatureVerificationError: If signature is missing, malformed, or invalid
     """
-    import logging
-    logger = logging.getLogger(__name__)
-    
     # Step 1: Validate timestamp (prevents replay attacks)
     verify_timestamp(timestamp, tolerance_seconds)
 
@@ -124,12 +116,6 @@ def verify_signature(
 
     # Step 3: Compute expected signature
     expected_signature = compute_signature(payload, timestamp, secret)
-
-    # Debug logging
-    logger.info(f"Timestamp: {timestamp}")
-    logger.info(f"Payload length: {len(payload)}, first 100 bytes: {payload[:100]}")
-    logger.info(f"Expected sig: {expected_signature[:20]}...")
-    logger.info(f"Received sig: {received_signature[:20]}...")
 
     # Step 4: Constant-time comparison (prevents timing attacks)
     if not hmac.compare_digest(expected_signature, received_signature):

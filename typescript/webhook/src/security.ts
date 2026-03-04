@@ -63,9 +63,6 @@ export function computeSignature(
   secret: string
 ): string {
   const message = Buffer.concat([Buffer.from(`${timestamp}.`), payload]);
-
-  console.log(`Signing message (first 100): ${message.subarray(0, 100).toString()}`);
-
   const signature = crypto
     .createHmac("sha256", secret)
     .update(message)
@@ -116,14 +113,6 @@ export function verifySignature(
 
   // Step 3: Compute expected signature
   const expectedSignature = computeSignature(payload, timestamp, secret);
-
-  // Debug logging
-  console.log(`Timestamp: ${timestamp}`);
-  console.log(
-    `Payload length: ${payload.length}, first 100 bytes: ${payload.subarray(0, 100).toString()}`
-  );
-  console.log(`Expected sig: ${expectedSignature.slice(0, 20)}...`);
-  console.log(`Received sig: ${receivedSignature.slice(0, 20)}...`);
 
   // Step 4: Constant-time comparison (prevents timing attacks)
   const expectedBuffer = Buffer.from(expectedSignature, "hex");
