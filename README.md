@@ -51,7 +51,7 @@ webhook-workflows/
 │   │   │   ├── security.ts  # HMAC signature validation
 │   │   │   └── types.ts     # Zod schemas for validation
 │   │   └── package.json
-│   └── workflow/            # Render Workflow tasks
+│   └── workflows/           # Render Workflow tasks
 │       ├── src/
 │       │   └── main.ts      # Task definitions
 │       └── package.json
@@ -63,7 +63,7 @@ webhook-workflows/
 │   │   ├── security.py      # HMAC signature validation
 │   │   ├── models.py        # Pydantic models for validation
 │   │   └── requirements.txt
-│   └── workflow/            # Render Workflow tasks
+│   └── workflows/           # Render Workflow tasks
 │       ├── main.py          # Task definitions
 │       └── requirements.txt
 ├── frontend/                # React tester UI
@@ -91,7 +91,7 @@ Workflows aren't yet supported in Blueprints, so create one manually:
 1. In the Render Dashboard, click **New > Workflow**
 2. Connect your repo (or fork of this template)
 3. Configure the workflow:
-   - **Root Directory**: `python/workflow` (or `typescript/workflow`)
+   - **Root Directory**: `python/workflows` (or `typescript/workflows`)
    - **Build Command**: `pip install -r requirements.txt` (or `npm install && npm run build`)
    - **Start Command**: `python main.py` (or `npm start`)
 4. Click **Deploy Workflow**
@@ -197,7 +197,7 @@ The Render CLI runs a local task server that simulates the workflow execution li
 **TypeScript:**
 
 ```bash
-cd typescript/workflow
+cd typescript/workflows
 npm install && npm run build
 render workflows dev -- npm start
 ```
@@ -205,7 +205,7 @@ render workflows dev -- npm start
 **Python:**
 
 ```bash
-cd python/workflow
+cd python/workflows
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 render workflows dev -- python main.py

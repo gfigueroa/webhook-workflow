@@ -9,7 +9,7 @@
 #
 # After deploying:
 # 1. Create a Workflow service in the Dashboard (New > Workflow)
-# 2. Link this repo, set root directory to "python/workflow/" or "typescript/workflow/"
+# 2. Link this repo, set root directory to "python/workflows/" or "typescript/workflows/"
 # 3. Set WORKFLOW_SLUG to your workflow service name
 
 services:
