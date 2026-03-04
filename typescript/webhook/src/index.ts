@@ -36,6 +36,33 @@ if (fs.existsSync(assetsDir)) {
   });
 }
 
+// Demo mode: rate limit POST /webhook to 10 req/min per IP
+const settings = getSettings();
+if (settings.demoMode) {
+  const requestLog = new Map<string, number[]>();
+  const MAX_REQUESTS = 10;
+  const WINDOW_MS = 60_000;
+
+  fastify.addHook("onRequest", async (request, reply) => {
+    if (request.method !== "POST" || request.url !== "/webhook") return;
+
+    const clientIp = request.ip;
+    const now = Date.now();
+    const cutoff = now - WINDOW_MS;
+    const timestamps = (requestLog.get(clientIp) ?? []).filter((t) => t > cutoff);
+
+    if (timestamps.length >= MAX_REQUESTS) {
+      reply.status(429).send({ detail: "Rate limit exceeded. Try again later." });
+      return;
+    }
+
+    timestamps.push(now);
+    requestLog.set(clientIp, timestamps);
+  });
+
+  console.log("Demo mode enabled - rate limiting active on /webhook");
+}
+
 // Content type parser to get raw body for signature verification
 fastify.addContentTypeParser(
   "application/json",

@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # Security settings
     timestamp_tolerance_seconds: int = 300  # 5 minutes
 
+    # Demo mode (enables rate limiting on /webhook)
+    demo_mode: bool = False
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

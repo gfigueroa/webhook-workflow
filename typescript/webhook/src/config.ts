@@ -26,6 +26,9 @@ export interface Settings {
 
   // Security settings
   timestampToleranceSeconds: number;
+
+  // Demo mode (enables rate limiting on /webhook)
+  demoMode: boolean;
 }
 
 function getEnvBoolean(key: string, defaultValue: boolean): boolean {
@@ -64,6 +67,9 @@ export function getSettings(): Settings {
 
     // Security settings
     timestampToleranceSeconds: getEnvNumber("TIMESTAMP_TOLERANCE_SECONDS", 300),
+
+    // Demo mode
+    demoMode: getEnvBoolean("DEMO_MODE", false),
   };
 
   return cachedSettings;

@@ -4,12 +4,15 @@ Configures FastAPI app, middleware, static files, and routes.
 """
 
 import logging
+import time
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Header, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import get_settings
 from handlers import (
@@ -56,12 +59,45 @@ async def lifespan(app: FastAPI):
     logger.info("Webhook service shutting down")
 
 
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Simple in-memory rate limiter for demo mode. Limits POST /webhook to 10 req/min per IP."""
+
+    def __init__(self, app, max_requests: int = 10, window_seconds: int = 60):
+        super().__init__(app)
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.requests: dict[str, list[float]] = defaultdict(list)
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method != "POST" or request.url.path != "/webhook":
+            return await call_next(request)
+
+        client_ip = request.client.host if request.client else "unknown"
+        now = time.time()
+        cutoff = now - self.window_seconds
+        self.requests[client_ip] = [t for t in self.requests[client_ip] if t > cutoff]
+
+        if len(self.requests[client_ip]) >= self.max_requests:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Try again later."},
+            )
+
+        self.requests[client_ip].append(now)
+        return await call_next(request)
+
+
 app = FastAPI(
     title="Webhook Demo with Render Workflows",
     description="Securely receive webhooks with HMAC signature validation and trigger async tasks",
     version="1.0.0",
     lifespan=lifespan,
 )
+
+settings = get_settings()
+if settings.demo_mode:
+    app.add_middleware(RateLimitMiddleware)
+    logger.info("Demo mode enabled - rate limiting active on /webhook")
 
 # Serve static files for the tester UI
 # Production: copied to ./static during build (from frontend/dist)
