@@ -5,7 +5,7 @@
  * Tasks demonstrate parallel execution, sequential chaining, and retry logic.
  */
 
-import { task, startTaskServer } from "@renderinc/sdk/workflows";
+import { task } from "@renderinc/sdk/workflows";
 
 // Types for the payment event
 interface PaymentData {
@@ -255,7 +255,7 @@ task(
       payment_id: paymentId,
       order_id: orderId,
       event_id: eventId,
-      status: "completed",
+      status: "succeeded",
       actions: {
         records_updated: recordsResult.status === "paid",
         receipt_sent: receiptResult.status === "sent",
@@ -271,5 +271,3 @@ task(
   }
 );
 
-// Start the task server
-startTaskServer();

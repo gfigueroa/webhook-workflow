@@ -177,15 +177,15 @@ export async function webhookHandler(
       ? taskName
       : `${settings.workflowSlug}/${taskName}`;
 
-    const startedRun = await render.workflows.runTask(taskIdentifier, [event]);
+    const startedRun = await render.workflows.startTask(taskIdentifier, [event]);
 
-    request.log.info(`Triggered workflow task: ${startedRun.id}`);
+    request.log.info(`Triggered workflow task: ${startedRun.taskRunId}`);
 
     const response: WebhookResponse = {
       status: "processing",
       event_id: event.event_id,
-      task_run_id: startedRun.id,
-      message: `Payment processing started (task: ${startedRun.id})`,
+      task_run_id: startedRun.taskRunId,
+      message: `Payment processing started (task: ${startedRun.taskRunId})`,
     };
 
     broadcastEvent("webhook_received", { response, event });

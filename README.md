@@ -183,65 +183,93 @@ curl -X POST "$WEBHOOK_URL" \
 
 ## Local development
 
-### TypeScript
+You can run and test the full webhook-to-workflow pipeline locally using the [Render CLI](https://render.com/docs/cli).
+
+### Prerequisites
+
+- [Install the Render CLI](https://render.com/docs/cli#setup) (v2.11.0 or later)
+- Node.js 20+ (for TypeScript) or Python 3.11+ (for Python)
+
+### Start the task server
+
+The Render CLI runs a local task server that simulates the workflow execution lifecycle. In a terminal, start it with your workflow's start command:
+
+**TypeScript:**
 
 ```bash
-# Webhook service
+cd typescript/workflow
+npm install && npm run build
+render workflows dev -- npm start
+```
+
+**Python:**
+
+```bash
+cd python/workflow
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+render workflows dev -- python main.py
+```
+
+The task server starts on port `8120`. To use a different port:
+
+```bash
+render workflows dev --port 9000 -- python main.py
+```
+
+### Start the webhook service
+
+In a separate terminal, start the webhook service with local dev mode enabled:
+
+**TypeScript:**
+
+```bash
 cd typescript/webhook
 npm install
-cp .env.example .env  # Edit with your settings
-npm run dev
-
-# Workflow (in a separate terminal)
-cd typescript/workflow
-npm install
-npm run dev
+RENDER_USE_LOCAL_DEV=true npm run dev
 ```
 
-### Python
+**Python:**
 
 ```bash
-# Webhook service
 cd python/webhook
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-# Create .env file
-cat > .env << EOF
-WEBHOOK_SECRET=dev-secret-for-testing
-RENDER_API_KEY=
-WORKFLOW_SLUG=
-EOF
-
-# Run the server
-python main.py
-
-# Workflow (in a separate terminal)
-cd python/workflow
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python main.py
+RENDER_USE_LOCAL_DEV=true python main.py
 ```
 
-### Frontend
+Setting `RENDER_USE_LOCAL_DEV=true` points the webhook service at your local task server instead of the Render API. You can also set this in a `.env` file:
+
+```bash
+WEBHOOK_SECRET=dev-secret-for-testing
+RENDER_USE_LOCAL_DEV=true
+# RENDER_LOCAL_DEV_URL=http://localhost:9000  # Only if using a non-default port
+```
+
+### Build the frontend
 
 ```bash
 cd frontend
 npm install
-npm run build  # Build the tester UI
+npm run build
 ```
 
 The webhook service serves the built frontend automatically.
 
-### Test locally without workflows
+### Trigger tasks from the CLI
 
-Without `RENDER_API_KEY` and `WORKFLOW_SLUG` set, the webhook validates signatures and payloads but skips workflow triggering. This is useful for testing the webhook logic in isolation.
+With the task server running, you can also list and run tasks directly from the CLI:
 
-### Test with Render Workflows locally
+```bash
+render workflows tasks list --local
+render workflows taskruns start process_payment --local --input='[{"event_type":"payment.succeeded","event_id":"evt_test","timestamp":"2026-01-23T10:30:00Z","data":{"payment_id":"pi_123","amount":5000,"currency":"usd","customer_email":"jane@example.com","customer_name":"Jane Smith","order_id":"ord_456","metadata":{}}}]'
+```
 
-See [Local Development for Workflows](https://render.com/docs/workflows-local-development) for running workflows locally.
+### Test without workflows
+
+Without `RENDER_USE_LOCAL_DEV` or a running task server, the webhook service validates signatures and payloads but skips workflow triggering. This is useful for testing webhook security logic in isolation.
+
+For more details, see [Local Development for Workflows](https://render.com/docs/workflows-local-development).
 
 ## Payload schema
 

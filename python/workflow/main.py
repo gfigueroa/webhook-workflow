@@ -19,7 +19,6 @@ logger.setLevel(logging.INFO)
 app = Workflows(
     default_retry=Retry(max_retries=3, wait_duration_ms=1000, backoff_scaling=2.0),
     default_timeout=300,
-    auto_start=True,
 )
 
 
@@ -212,7 +211,7 @@ async def process_payment(event: dict[str, Any]) -> dict:
         "payment_id": payment_id,
         "order_id": order_id,
         "event_id": event_id,
-        "status": "completed",
+        "status": "succeeded",
         "actions": {
             "records_updated": records_result["status"] == "paid",
             "receipt_sent": receipt_result["status"] == "sent",
@@ -227,4 +226,5 @@ async def process_payment(event: dict[str, Any]) -> dict:
     return result
 
 
-# No explicit start() needed - auto_start=True handles it
+if __name__ == "__main__":
+    app.start()

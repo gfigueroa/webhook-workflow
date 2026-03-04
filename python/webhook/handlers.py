@@ -5,7 +5,7 @@ import json
 import logging
 
 from fastapi import HTTPException, Request, status
-from render_sdk import Render
+from render_sdk import RenderAsync
 from sse_starlette.sse import EventSourceResponse
 
 from config import get_settings
@@ -19,21 +19,21 @@ from security import (
 logger = logging.getLogger(__name__)
 
 # Module-level SDK client (lazy initialized, reused across handlers)
-_render: Render | None = None
+_render: RenderAsync | None = None
 
 
-def get_render_client() -> Render:
+def get_render_client() -> RenderAsync:
     """Get cached Render client."""
     global _render
     if _render is None:
         settings = get_settings()
         if settings.render_use_local_dev:
-            _render = Render(
+            _render = RenderAsync(
                 token=settings.render_api_key,
                 base_url=settings.render_local_dev_url,
             )
         else:
-            _render = Render(token=settings.render_api_key)
+            _render = RenderAsync(token=settings.render_api_key)
     return _render
 
 
@@ -160,7 +160,7 @@ async def webhook_handler(
             else f"{settings.workflow_slug}/{task_name}"
         )
 
-        started_run = await render.workflows.run_task(
+        started_run = await render.workflows.start_task(
             task_identifier=task_identifier,
             input_data=task_input,
         )
