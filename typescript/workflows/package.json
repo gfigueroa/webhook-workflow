@@ -10,7 +10,7 @@
     "dev": "tsx src/main.ts"
   },
   "dependencies": {
-    "@renderinc/sdk": "latest"
+    "@renderinc/sdk": "^0.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
