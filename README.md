@@ -77,7 +77,7 @@ webhook-workflows/
 
 Click the button below to deploy the webhook service:
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/render-examples/webhook-workflows)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/gfigueroa/webhook-workflow)
 
 During deployment, you'll be prompted for:
 
